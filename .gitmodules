@@ -1,0 +1,6 @@
+[submodule "Flizen-Backend"]
+	path = Flizen-Backend
+	url = https://github.com/harshpatel2312/Flizen-Backend.git
+[submodule "Flizen-Frontend"]
+	path = Flizen-Frontend
+	url = https://github.com/harshpatel2312/Flizen-Frontend.git
