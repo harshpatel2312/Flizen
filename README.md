@@ -1,29 +1,42 @@
 # Flizen
 
-A full-stack flight booking platform with a dark-mode React frontend and a FastAPI backend. Flight data is sourced in real time from the [Duffel Air API](https://duffel.com).
+A full-stack flight booking platform with a dark-mode React frontend and a FastAPI backend. Flight offers and orders come from the [Duffel Air API](https://duffel.com), payments are processed with [Stripe](https://stripe.com), and users sign in with Firebase (Google).
 
 ## Repository structure
 
 ```
 Flizen/
-├── Flizen-Frontend/   # React + Vite + Tailwind CSS
-├── Flizen-Backend/    # FastAPI + Python
+├── Flizen-Frontend/   # React + Vite + Tailwind CSS (git submodule)
+├── Flizen-Backend/    # FastAPI + Python (git submodule)
 └── README.md
 ```
 
+Both apps are git submodules. Clone with `git clone --recurse-submodules`, or run `git submodule update --init` after cloning. Commit inside each submodule first, then commit the updated submodule pointers here.
+
+## Features
+
+- Flight search (one-way and round trip) with live Duffel offers, sorting, and client-side filters.
+- Passenger details with a country-code phone picker (per-country formatting and validation) and searchable nationality.
+- Optional seat selection (visual preference; not yet confirmed with the airline).
+- Stripe checkout with server-side pricing, webhook-driven fulfillment, and automatic refunds when the airline order fails.
+- Booking status page with live progress, airline reference, and a My Trips list.
+- User profile (personal, contact, passport, and travel preferences).
+- Booking flow selections survive browser Back / Forward (session-only, never for payment data).
+
 ## Tech stack
 
-| Layer    | Technology                                                                |
-|----------|---------------------------------------------------------------------------|
-| Frontend | React 18, Vite 5, Tailwind CSS, React Router v6                           |
-| Backend  | FastAPI, uvicorn, httpx, Pydantic v2                                      |
-| Auth     | Firebase Authentication (Google sign-in), Firebase Admin SDK              |
-| Data     | Duffel Air API (live flight offers), Firebase Firestore (airport cache)   |
-| Logging  | Python `logging` with `RotatingFileHandler`                               |
+| Layer     | Technology                                                                     |
+|-----------|--------------------------------------------------------------------------------|
+| Frontend  | React 18, React Router 7, Vite 5, Tailwind CSS, Stripe Elements, libphonenumber-js |
+| Backend   | FastAPI, uvicorn, httpx, Pydantic v2, Stripe Python SDK                        |
+| Auth      | Firebase Authentication (Google sign-in), Firebase Admin SDK                   |
+| Data      | Duffel Air API, Firebase Firestore (profiles, bookings, Stripe event log)      |
+| Payments  | Stripe PaymentIntents + webhooks                                               |
+| Logging   | Python `logging` with `RotatingFileHandler`                                    |
 
 ## Quick start
 
-### Backend
+### 1. Backend
 
 ```bash
 cd Flizen-Backend
@@ -34,15 +47,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Add `--log-terminal` to also print logs to the console:
+API at `http://localhost:8000`, docs at `http://localhost:8000/docs`. To also print logs to the terminal, run `python -m app.main --log-terminal` instead (the uvicorn CLI does not accept that flag).
+
+### 2. Stripe webhook forwarding
+
+Bookings are only fulfilled when Stripe's webhook reaches the backend. Locally, keep the [Stripe CLI](https://docs.stripe.com/stripe-cli) running in a separate terminal:
 
 ```bash
-uvicorn app.main:app --reload --log-terminal
+stripe login
+stripe listen --forward-to http://localhost:8000/api/payments/webhook
 ```
 
-API available at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+Put the `whsec_...` secret it prints into `STRIPE_WEBHOOK_SECRET`. Without this, payments succeed in Stripe but bookings stay on "Securing your booking".
 
-### Frontend
+### 3. Frontend
 
 ```bash
 cd Flizen-Frontend
@@ -50,24 +68,28 @@ npm install
 npm run dev
 ```
 
-App runs at `http://localhost:5173`.
+App runs at `http://localhost:3000`.
 
 ## Environment variables
 
-### Backend — `Flizen-Backend/.env`
+### Backend: `Flizen-Backend/.env`
 
 ```
-DUFFEL_ACCESS_TOKEN=duffel_test_...
 FIREBASE_CREDENTIALS_PATH=firebase-admin-key.json
 FIREBASE_PROJECT_ID=your-project-id
-CORS_ORIGINS=http://localhost:5173
+CORS_ORIGINS=http://localhost:3000
 ENVIRONMENT=development
+DUFFEL_ACCESS_TOKEN=duffel_test_...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+FRONTEND_URL=http://localhost:3000
 ```
 
-### Frontend — `Flizen-Frontend/.env.local`
+### Frontend: `Flizen-Frontend/.env.local`
 
 ```
 VITE_API_BASE_URL=http://localhost:8000
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
 VITE_FIREBASE_API_KEY=AIza...
 VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your-project-id
@@ -76,23 +98,29 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
 VITE_FIREBASE_APP_ID=1:123:web:abc
 ```
 
-The app loads without Firebase config — Firebase is only required when the user clicks **Continue with Google**.
+Never commit `.env`, `.env.local`, or `firebase-admin-key.json`.
 
 ## Pages
 
-| Route          | Description                                                                   |
-|----------------|-------------------------------------------------------------------------------|
-| `/`            | Login — entry point for all users                                             |
-| `/login`       | Same as `/`                                                                   |
-| `/signup`      | Sign-up with Google                                                           |
-| `/dashboard`   | Dashboard — booking form and flight history                                   |
-| `/flights`     | Flight listing — results, sort, filter panel, and flight details side panel   |
-| `/passengers`  | Passenger details — traveller info form before booking confirmation           |
+| Route                                   | Description                                         |
+|-----------------------------------------|-----------------------------------------------------|
+| `/`, `/login`                           | Login                                               |
+| `/signup`                               | Sign-up with Google                                 |
+| `/dashboard`                            | Search form and recent trips                        |
+| `/flights`                              | Results, sort, filters, flight details              |
+| `/passengers`                           | Traveller and contact details                       |
+| `/seat-choice`, `/seats`                | Optional seat selection                             |
+| `/payment/:bookingId`                   | Stripe checkout                                     |
+| `/payment/:bookingId/processing`        | Stripe return URL, live booking status              |
+| `/booking/:bookingId`                   | Booking status from the trips list                  |
+| `/profile`                              | User profile                                        |
 
+## Notes
 
-- The Duffel integration runs in **test mode** by default. Test tokens start with `duffel_test_`. Offers are synthetic and cannot be booked.
-- Logs are always written to `Flizen-Backend/logs/flizen.log` (rotating, 10 MB, 5 backups). Pass `--log-terminal` to also emit to stdout.
-- See each subdirectory README for component-level and API-level details.
+- Duffel and Stripe run in **test mode** locally (`duffel_test_...`, `sk_test_...` / `pk_test_...`). Duffel test orders are confirmed by its test airline, but no real ticket is issued. Use Stripe test card `4242 4242 4242 4242`.
+- The trips list needs a Firestore composite index on `bookings` (`uid` asc, `created_at` desc); see the backend README.
+- Logs are written to `Flizen-Backend/logs/flizen.log` (rotating, 10 MB, 5 backups).
+- See [Flizen-Backend/README.md](./Flizen-Backend/README.md) and [Flizen-Frontend/README.md](./Flizen-Frontend/README.md) for API, architecture, and deployment details.
 
 ## License
 
