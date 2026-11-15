@@ -1,0 +1,25 @@
+# Flizen-Backend and Flizen-Frontend are submodules with their own .gitignore.
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-firebase-adminsdk-*.json
+serviceAccount*.json
+
+# Dependencies / environments created at the root by mistake
+node_modules/
+venv/
+.venv/
+
+# Logs
+*.log
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp

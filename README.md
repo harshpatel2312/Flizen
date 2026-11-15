@@ -19,7 +19,8 @@ Both apps are git submodules. Clone with `git clone --recurse-submodules`, or ru
 - Passenger details with a country-code phone picker (per-country formatting and validation) and searchable nationality.
 - Optional seat selection (visual preference; not yet confirmed with the airline).
 - Stripe checkout with server-side pricing, webhook-driven fulfillment, and automatic refunds when the airline order fails.
-- Booking status page with live progress, airline reference, and a My Trips list.
+- Booking status page with live progress and airline reference.
+- **My Trips:** all bookings grouped into upcoming, pending, completed, cancelled, and refunded; a Trip Details drawer shows the itinerary, airline references, seats and baggage, travellers, and payment history for each trip.
 - User profile (personal, contact, passport, and travel preferences).
 - Booking flow selections survive browser Back / Forward (session-only, never for payment data).
 
@@ -30,7 +31,7 @@ Both apps are git submodules. Clone with `git clone --recurse-submodules`, or ru
 | Frontend  | React 18, React Router 7, Vite 5, Tailwind CSS, Stripe Elements, libphonenumber-js |
 | Backend   | FastAPI, uvicorn, httpx, Pydantic v2, Stripe Python SDK                        |
 | Auth      | Firebase Authentication (Google sign-in), Firebase Admin SDK                   |
-| Data      | Duffel Air API, Firebase Firestore (profiles, bookings, Stripe event log)      |
+| Data      | Duffel Air API, Firebase Firestore (profiles, bookings, payment records, Stripe event log) |
 | Payments  | Stripe PaymentIntents + webhooks                                               |
 | Logging   | Python `logging` with `RotatingFileHandler`                                    |
 
@@ -112,13 +113,14 @@ Never commit `.env`, `.env.local`, or `firebase-admin-key.json`.
 | `/seat-choice`, `/seats`                | Optional seat selection                             |
 | `/payment/:bookingId`                   | Stripe checkout                                     |
 | `/payment/:bookingId/processing`        | Stripe return URL, live booking status              |
-| `/booking/:bookingId`                   | Booking status from the trips list                  |
+| `/booking/:bookingId`                   | Live booking status                                 |
+| `/trips`, `/trips/:bookingId`           | My Trips and trip details                           |
 | `/profile`                              | User profile                                        |
 
 ## Notes
 
 - Duffel and Stripe run in **test mode** locally (`duffel_test_...`, `sk_test_...` / `pk_test_...`). Duffel test orders are confirmed by its test airline, but no real ticket is issued. Use Stripe test card `4242 4242 4242 4242`.
-- The trips list needs a Firestore composite index on `bookings` (`uid` asc, `created_at` desc); see the backend README.
+- Firestore security rules and indexes live in `Flizen-Backend/` (`firestore.rules`, `firestore.indexes.json`); deploy them with `firebase deploy --only firestore:rules,firestore:indexes`. Data model: [Flizen-Backend/docs/FIRESTORE.md](./Flizen-Backend/docs/FIRESTORE.md).
 - Logs are written to `Flizen-Backend/logs/flizen.log` (rotating, 10 MB, 5 backups).
 - See [Flizen-Backend/README.md](./Flizen-Backend/README.md) and [Flizen-Frontend/README.md](./Flizen-Frontend/README.md) for API, architecture, and deployment details.
 
